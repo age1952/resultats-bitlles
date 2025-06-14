@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bitlles Catalanes - Resultats Guissona</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    h2 { text-align: center; }
+    .jugador { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 10px 0; background: #f2f2f2; }
+    .ronda { margin-bottom: 10px; border: 1px solid #aaa; border-radius: 5px; padding: 8px; }
+    .ronda h4 { margin: 0 0 8px 0; }
+    .tirades { display: flex; gap: 5px; flex-wrap: wrap; }
+    .tirades input { width: 28%; padding: 8px; font-size: 16px; text-align: center; }
+    .total-ronda { margin-top: 6px; font-weight: bold; }
+    .total-global { margin-top: 10px; font-weight: bold; font-size: 1.1em; }
+    input[list] { width: 100%; padding: 8px; font-size: 16px; margin-bottom: 10px; }
+    button { margin: 10px 5px 0 0; padding: 10px 15px; font-size: 16px; }
+  </style>
+</head>
+<body>
+<h2>Resultats Bitlles Catalanes Guissona</h2>
+
+<label for="numJugadors">Número de jugadors:</label>
+<select id="numJugadors">
+  <option value="">--Selecciona--</option>
+  <option value="2">2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+  <option value="5">5</option>
+  <option value="6">6</option>
+  <option value="7">7</option>
+  <option value="8">8</option>
+</select>
+
+<form id="formulari">
+  <div id="jugadorsContainer"></div>
+</form>
+
+<button onclick="novaPartida()">Nova partida</button>
+<button onclick="exportarExcel()">Exporta a Excel</button>
+
+<datalist id="jugadorsLlista">
+  <option value="cabrera"></option>
+  <option value="casoliva"></option>
+  <option value="garcia"></option>
+  <option value="guasch"></option>
+  <option value="jesus"></option>
+  <option value="martinez"></option>
+  <option value="mayoral"></option>
+  <option value="padros"></option>
+  <option value="vilana"></option>
+</datalist>
+
+<datalist id="puntsLlista">
+  <option value="10"></option>
+  <option value="6"></option>
+  <option value="4"></option>
+  <option value="3"></option>
+  <option value="2"></option>
+  <option value="1"></option>
+  <option value="0"></option>
+</datalist>
+
+<script>
+const container = document.getElementById("jugadorsContainer");
+const selector = document.getElementById("numJugadors");
+let rondaActual = 1;
+const totalRondes = 3;
+let numJugadors = 0;
+let partides = [];
+let contadorPartida = 1;
+
+selector.addEventListener("change", () => {
+  numJugadors = parseInt(selector.value);
+  rondaActual = 1;
+  if (!numJugadors || numJugadors < 2 || numJugadors > 8) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = "";
+  for (let i = 1; i <= numJugadors; i++) {
+    afegirJugador(i);
+  }
+  mostraRonda(1);
+});
+
+function afegirJugador(id) {
+  const div = document.createElement("div");
+  div.className = "jugador";
+  div.id = `jugador${id}`;
+
+  div.innerHTML = `
+    <h3>Jugador ${id}</h3>
+    <input list="jugadorsLlista" type="text" name="jugador${id}_nom" placeholder="Nom jugador ${id}" required autocomplete="off">
+    <div class="ronda" id="ronda1_jugador${id}">
+      <h4>Ronda 1 (t1, t2, t3)</h4>
+      <div class="tirades" id="tirades_ronda1_jugador${id}"></div>
+      <div class="total-ronda">Total Ronda 1: <span id="totalR1_${id}">0</span></div>
+    </div>
+    <div class="ronda" id="ronda2_jugador${id}">
+      <h4>Ronda 2 (t4, t5, t6)</h4>
+      <div class="tirades" id="tirades_ronda2_jugador${id}"></div>
+      <div class="total-ronda">Total Ronda 2: <span id="totalR2_${id}">0</span></div>
+    </div>
+    <div class="ronda" id="ronda3_jugador${id}">
+      <h4>Ronda 3 (t7, t8, t9)</h4>
+      <div class="tirades" id="tirades_ronda3_jugador${id}"></div>
+      <div class="total-ronda">Total Ronda 3: <span id="totalR3_${id}">0</span></div>
+    </div>
+    <div class="total-global" style="display:none;">Total global: <span id="totalGlobal${id}">0</span></div>
+  `;
+
+  container.appendChild(div);
+  afegirInputsTirades(id, 1, 3);
+  afegirInputsTirades(id, 4, 6);
+  afegirInputsTirades(id, 7, 9);
+}
+
+function afegirInputsTirades(id, start, end) {
+  const rondaNum = Math.ceil(end / 3);
+  const tiradesContainer = document.getElementById(`tirades_ronda${rondaNum}_jugador${id}`);
+  for (let i = start; i <= end; i++) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = 0;
+    input.max = 10;
+    input.step = 1;
+    input.name = `jugador${id}_t${i}`;
+    input.placeholder = `t${i}`;
+    input.setAttribute("list", "puntsLlista");
+    input.className = `tirada ronda${rondaNum} jugador${id}`;
+    input.disabled = true;
+    input.addEventListener("input", () => {
+      actualitzaTotals(id);
+      comprovaRondaCompleta();
+    });
+    tiradesContainer.appendChild(input);
+  }
+}
+
+function mostraRonda(ronda) {
+  for (let r = 1; r <= totalRondes; r++) {
+    const visible = (r === ronda);
+    for(let i = 1; i <= numJugadors; i++) {
+      document.getElementById(`ronda${r}_jugador${i}`).style.display = visible ? "block" : "none";
+    }
+    document.querySelectorAll(`input.ronda${r}`).forEach(input => {
+      input.disabled = !visible;
+    });
+  }
+  for(let i = 1; i <= numJugadors; i++) {
+    const totalGlobalDiv = document.querySelector(`#jugador${i} .total-global`);
+    totalGlobalDiv.style.display = (ronda === totalRondes) ? "block" : "none";
+  }
+}
+
+function actualitzaTotals(id) {
+  let totalGlobal = 0;
+  for (let ronda = 1; ronda <= totalRondes; ronda++) {
+    const inputs = document.querySelectorAll(`#tirades_ronda${ronda}_jugador${id} input`);
+    let totalRonda = 0;
+    inputs.forEach(input => {
+      const val = parseInt(input.value);
+      if (!isNaN(val)) totalRonda += val;
+    });
+    document.getElementById(`totalR${ronda}_${id}`).textContent = totalRonda;
+    totalGlobal += totalRonda;
+  }
+  document.getElementById(`totalGlobal${id}`).textContent = totalGlobal;
+}
+
+function comprovaRondaCompleta() {
+  let completa = true;
+  for (let i = 1; i <= numJugadors; i++) {
+    const inputs = document.querySelectorAll(`#tirades_ronda${rondaActual}_jugador${i} input`);
+    for (const input of inputs) {
+      if (input.value === "") {
+        completa = false;
+        break;
+      }
+    }
+    if (!completa) break;
+  }
+
+  if (completa) {
+    if (rondaActual < totalRondes) {
+      rondaActual++;
+      mostraRonda(rondaActual);
+    } else {
+      alert("Has completat totes les rondes!");
+    }
+  }
+}
+
+function novaPartida() {
+  if (numJugadors === 0) {
+    alert("Selecciona el nombre de jugadors abans de començar la partida.");
+    return;
+  }
+  const avui = new Date();
+  const dia = String(avui.getDate()).padStart(2, '0');
+  const mes = String(avui.getMonth() + 1).padStart(2, '0');
+  const any = avui.getFullYear();
+  const data = `${dia}/${mes}/${any}`;
+  let partida = [];
+  for (let i = 1; i <= numJugadors; i++) {
+    const nom = document.querySelector(`#jugador${i} input[type=text]`).value.trim();
+    if (!nom) continue;
+    let jugador = {
+      Data: data,
+      Partida: contadorPartida,
+      Jugador: nom
+    };
+    let total = 0;
+    for (let t = 1; t <= 9; t++) {
+      const valor = parseInt(document.querySelector(`input[name=jugador${i}_t${t}]`).value) || 0;
+      jugador[`T${t}`] = valor;
+      total += valor;
+    }
+    jugador["Total"] = total;
+    partida.push(jugador);
+  }
+  if (partida.length > 0) {
+    partides.push(partida);
+    contadorPartida++;
+    alert(`Partida ${partides.length} desada.`);
+  } else {
+    alert("Cap dada per desar.");
+  }
+}
+
+function exportarExcel() {
+  if (partides.length === 0) {
+    alert("No hi ha cap partida per exportar.");
+    return;
+  }
+  const fullDades = [];
+  partides.forEach(partida => fullDades.push(...partida));
+  const ws = XLSX.utils.json_to_sheet(fullDades);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resultats Bitlles");
+  XLSX.writeFile(wb, "resultats_bitlles.xlsx");
+}
+</script>
+</body>
+</html>
