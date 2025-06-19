@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registre de Partides - Bitlles Catalanes</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      color: #111;
+      transition: background 0.3s, color 0.3s;
+    }
+    .dark {
+      background-color: #111;
+      color: #eee;
+    }
+    header {
+      background: #0077cc;
+      color: white;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      background: #ddd;
+    }
+    .tab {
+      padding: 0.5rem;
+      flex: 1;
+      text-align: center;
+      background: #ccc;
+      border: 1px solid #999;
+      cursor: pointer;
+    }
+    .tab.active {
+      background: #fff;
+      font-weight: bold;
+    }
+    .tab.completed::after {
+      content: " ✔️";
+    }
+    .partida {
+      display: none;
+      padding: 1rem;
+    }
+    .partida.active {
+      display: block;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow-x: auto;
+      display: block;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 0.3rem;
+      text-align: center;
+      min-width: 50px;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 1rem;
+    }
+    .controls {
+      padding: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    button {
+      flex: 1 1 auto;
+      min-width: 120px;
+      padding: 0.6rem;
+      font-size: 1rem;
+    }
+    @media (max-width: 600px) {
+      th, td { font-size: 0.75rem; }
+      .controls {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Registre de Partides</h1>
+    <button onclick="toggleDarkMode()">🌙 / ☀️</button>
+  </header>
+  <div class="tabs" id="tabContainer"></div>
+  <div id="partidesContainer"></div>
+  <div class="controls">
+    <button onclick="afegirPartida()">Nova Partida</button>
+    <button onclick="afegirJugador()">Afegir jugador</button>
+    <button onclick="exportarCSV()">Exportar CSV</button>
+    <button onclick="reiniciarTot()">Reiniciar</button>
+  </div>
+
+  <script>
+    let partides = [];
+    let actual = 0;
+
+    const getDataAvui = () => {
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    };
+
+    function afegirPartida() {
+      if (partides.length >= 10) return alert("Màxim 10 partides per partit.");
+      partides.push({
+        data: getDataAvui(),
+        np: partides.length + 1,
+        jugadors: []
+      });
+      actual = partides.length - 1;
+      render();
+    }
+
+    function afegirJugador() {
+      if (!partides[actual]) return;
+      if (partides[actual].jugadors.length >= 15) return alert("Màxim 15 jugadors per partida.");
+      partides[actual].jugadors.push({
+        cognoms: "",
+        camp: "a",
+        tirades: Array(9).fill(""),
+        total: 0
+      });
+      render();
+    }
+
+    function actualitzarJugador(i, j) {
+      const fila = document.getElementById(`fila-${i}-${j}`);
+      const inputs = fila.querySelectorAll("input, select");
+      const jugador = partides[i].jugadors[j];
+      jugador.cognoms = inputs[0].value;
+      jugador.camp = inputs[1].value;
+      jugador.tirades = Array.from(inputs).slice(2, 11).map(inp => {
+        const val = parseInt(inp.value);
+        return isNaN(val) ? 0 : val;
+      });
+      jugador.total = jugador.tirades.reduce((a, b) => a + b, 0);
+      render();
+    }
+
+    function renderTabs() {
+      const tabCont = document.getElementById("tabContainer");
+      tabCont.innerHTML = "";
+      partides.forEach((p, i) => {
+        const tab = document.createElement("div");
+        tab.className = "tab" + (i === actual ? " active" : "");
+        tab.innerText = `Partida ${p.np}`;
+        tab.onclick = () => { actual = i; render(); };
+        tabCont.appendChild(tab);
+      });
+    }
+
+    function renderPartides() {
+      const cont = document.getElementById("partidesContainer");
+      cont.innerHTML = "";
+      partides.forEach((p, i) => {
+        const div = document.createElement("div");
+        div.className = "partida" + (i === actual ? " active" : "");
+
+        let html = `<h2>Data: ${p.data} | Partida nº ${p.np}</h2>`;
+        html += `<table><thead><tr><th>#</th><th>Cognoms</th><th>Camp</th>`;
+        for (let k = 1; k <= 9; k++) html += `<th>T${k}</th>`;
+        html += `<th>Total</th></tr></thead><tbody>`;
+
+        p.jugadors.forEach((j, idx) => {
+          html += `<tr id="fila-${i}-${idx}"><td>${idx + 1}</td>`;
+          html += `<td><input value="${j.cognoms}" onchange="actualitzarJugador(${i}, ${idx})"></td>`;
+          html += `<td><select onchange="actualitzarJugador(${i}, ${idx})">
+            ${['a','b','c','d','g','p','r'].map(opt => `<option${opt === j.camp ? ' selected' : ''}>${opt}</option>`).join('')}
+          </select></td>`;
+          for (let t = 0; t < 9; t++) {
+            html += `<td><select onchange="actualitzarJugador(${i}, ${idx})">
+              ${[10,6,4,3,2,1,0].map(p => `<option${j.tirades[t] == p ? ' selected' : ''}>${p}</option>`).join('')}
+            </select></td>`;
+          }
+          html += `<td>${j.total}</td></tr>`;
+        });
+
+        html += `</tbody></table>`;
+        div.innerHTML = html;
+        cont.appendChild(div);
+      });
+    }
+
+    function exportarCSV() {
+      if (partides.length === 0) return;
+      let rows = ["Data;Partida;Cognoms;Camp;T1;T2;T3;T4;T5;T6;T7;T8;T9;Total"];
+      partides.forEach(p => {
+        p.jugadors.forEach(j => {
+          rows.push(`${p.data};${p.np};${j.cognoms};${j.camp};${j.tirades.join(';')};${j.total}`);
+        });
+      });
+      const blob = new Blob([rows.join("\n")], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "bitlles_resultats.csv";
+      a.click();
+    }
+
+    function reiniciarTot() {
+      if (!confirm("Vols esborrar totes les partides?")) return;
+      partides = [];
+      actual = 0;
+      render();
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    function render() {
+      renderTabs();
+      renderPartides();
+    }
+
+    // Inici amb una partida per defecte
+    afegirPartida();
+  </script>
+</body>
+</html>
